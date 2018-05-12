@@ -1,0 +1,194 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Jose Elgenedy"
+date: "May 2018"
+---
+
+
+## Executive Summary
+
+This project is part of the Practical Machine Learning course on Coursera, a part of the Johns Hopkins Data Science Specialization.
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. 
+
+Data was collect by 6 participants who were asked to peform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: 
+
+    + exactly according to the specification (Class A), 
+    + throwing the elbows to the front (Class B), 
+    + lifting the dumbbell only halfway (Class C), 
+    + lowering the dumbbell only halfway (Class D) and 
+    + throwing the hips to the front (Class E)
+
+The goal of this project is to predict to which class each observation belongs to using data from accelerometers on these devices
+
+For moe information about this data, pelase visit: 
+http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har
+
+
+## Methodological approach
+
+The objective is to predict the variable *classe* which is un unordered factor variable with 5 levels (as described above). 
+
+Given the sample size in the training set (19622), we can divide it into a sub-training and sub-testing sets to allow cross-validation.
+
+Two different models wil be used: decision tree and random forest. Both algorithms are known for theis ability in detecting features for classification. 
+
+Cross-validation will be conducted by randomly subsampling without replacement. Sub-training will be assigned 75% of the original training set while the sub-testing 25%. Models will be fitted on the sub-training set and tested individually on the sub-testing set. The most accurate model will be used in the original testing setand will be considered our final model.
+
+The expected out-of-sample error will correspond to the quantity: 1-accuracy in the cross-validation data. Accuracy is the proportion of correct classified observation over the total sample in the subTesting data set. Expected accuracy is the expected accuracy in the out-of-sample data set (i.e. original testing data set). Thus, the expected value of the out-of-sample error will correspond to the expected number of missclassified observations/total observations in the Test data set, which is the quantity: 1-accuracy found from the cross-validation data set.
+
+For reproducibility, the random number generator seed used was 23058
+
+```{r seed}
+set.seed(23058)
+```
+
+## Requirements
+
+Analysis performed under R 3.4.2, in Windows 10, 64b version.
+
+Packages needed:
+
+    + caret
+    + randomForest
+    + rpart
+    + rpart.plot
+
+```{r loading_libraries, warning=FALSE}
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+```
+
+## Data loading and clean up
+
+The datasets used in this project were:
+
+Training dataset: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+Test dataset: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+### Loading data
+
+We start by loading the data into R. In both datasets, NA's are coded in three different ways: DIV/0!, NA or an empty string. 
+All of them will be coded as NA:
+
+
+```{r loading_data}
+trainset<-read.csv('pml-training.csv', na.strings = c("NA", "#DIV/0!", ""))
+testset<-read.csv('pml-testing.csv', na.strings = c("NA", "#DIV/0!", ""))
+
+dim (trainset)
+dim (testset)
+```
+
+### Clean up data
+
+So, the training set has 19622 observations and the testing set has 20. Both have 160 Variables.
+
+The first 7 variables are irrelevant to this study (X - a sequencial number, user_name, raw_timestamp_part_1, raw_timestamp_part_,2 cvtd_timestamp, new_window, and  num_window). So I can remove them.
+
+```{r clean1}
+trainset   <-trainset[,-c(1:7)]
+testset <-testset[,-c(1:7)]
+```
+
+I will also remove columns that only have NA's:
+
+```{r clean2}
+trainset   <-trainset[,colSums(is.na(trainset)) == 0]
+testset <-testset[,colSums(is.na(testset)) == 0]
+```
+
+which gets us to this new dimensions:
+
+```{r new_dimansion}
+dim (trainset)
+dim (testset)
+```
+
+And we get down to 53 variables.
+
+## Data preparation, model fitting and prediction
+
+### Partitioning training data, 75% for subtrain and 25% for subtest:
+
+```{r partitioning}
+subsample <- createDataPartition(y=trainset$classe, p=0.75, list=FALSE)
+subtrain <- trainset[subsample, ] 
+subtest <- trainset[-subsample, ]
+```
+
+### Fiting firt model - Random Forest:
+
+```{r randomForest-Fit}
+forestModel<-randomForest(classe ~ ., data=subtrain, method="class")
+```
+
+Predicting with Random Forest:
+
+```{r randomForest-predict}
+forestPrediction<-predict(forestModel, subtest, type = "class")
+```
+
+Testing results of random forest using subtest
+
+```{r randomForest-test}
+confusionMatrix(forestPrediction, subtest$classe)
+```
+
+### Fiting second model - Decision tree:
+
+```{r decisionTree-Fit}
+treeModel<-rpart(classe ~ ., data=subtrain, method="class")
+```
+
+Predicting with Decision tree:
+
+```{r decisionTree-predict}
+treePrediction<-predict(treeModel, subtest, type = "class")
+rpart.plot(treeModel, main="Decision Tree", extra=102, under=TRUE, faclen=0)
+```
+
+Testing results of decision tree using subtest
+
+```{r decisionTree-test}
+confusionMatrix(treePrediction, subtest$classe)
+```
+
+## Chosen model
+
+Given the results presented, the chosen model is the Random Forest, with an accuracy of 0.9947 (with a 95% CI of (0.9922, 0.9965)) versus an accuracy of 0.742 (with a 95% CI of (0.7296, 0.7542)) of the decision tree.
+The expected out-of-sample error is 1-accuracy, so 0.5%. Since the test data is 20 cases, and the accuracy is above 99%, we can expect very few (or none) of the test samples to be missclassified.
+
+## Final run
+
+Finally, we'll run our model in the original test set:
+
+```{r final}
+finalPrediction<-predict(forestModel, testset, type="class")
+finalPrediction
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
